@@ -1,0 +1,45 @@
+---
+- name: Configure web server
+  hosts: webservers
+  become: true
+
+  tasks:
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: present
+        update_cache: true
+
+    - name: Install Node.js
+      apt:
+        name: nodejs
+        state: present
+        update_cache: true
+
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+        update_cache: true
+
+    - name: Clone app repository
+      git:
+        repo: https://github.com/Gojiro-34/aws-express-rds-app.git
+        dest: /home/ubuntu/my-app
+        version: main
+
+    - name: Stop existing container
+      shell: docker stop gujju-container || true
+
+    - name: Remove existing container
+      shell: docker rm gujju-container || true
+
+    - name: Build Docker image
+      shell: docker build -t gujju-express-app /home/ubuntu/my-app
+
+    - name: Run Docker container
+      shell: >
+        docker run -d -p 3000:3000
+        --env-file /home/ubuntu/my-app/.env
+        --name gujju-container
+        gujju-express-app
