@@ -8,11 +8,13 @@ terraform {
 }
 
 provider "aws" {
-  region = "ap-south-1"
+  region = var.region
 }
 
+# ---------- Networking ----------
+
 resource "aws_vpc" "main" {
-  cidr_block           = "10.2.0.0/16"
+  cidr_block           = var.vpc_cidr
   enable_dns_support   = true
   enable_dns_hostnames = true
 
@@ -24,43 +26,42 @@ resource "aws_vpc" "main" {
 resource "aws_subnet" "public-1a" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.2.1.0/24"
-  availability_zone       = "ap-south-1a"
+  availability_zone       = var.az_1a
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "Gujju-capstone-public-1a"
-
+    Name = "gujju-capstone-public-1a"
   }
 }
 
 resource "aws_subnet" "public-1b" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.2.2.0/24"
-  availability_zone       = "ap-south-1b"
+  availability_zone       = var.az_1b
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "Gujju-capstone-public-1b"
+    Name = "gujju-capstone-public-1b"
   }
 }
 
 resource "aws_subnet" "private-1a" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.2.3.0/24"
-  availability_zone = "ap-south-1a"
+  availability_zone = var.az_1a
 
   tags = {
-    Name = "Gujju-capstone-private-1a"
+    Name = "gujju-capstone-private-1a"
   }
 }
 
 resource "aws_subnet" "private-1b" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.2.4.0/24"
-  availability_zone = "ap-south-1b"
+  availability_zone = var.az_1b
 
   tags = {
-    Name = "Gujju-capstone-private-1b"
+    Name = "gujju-capstone-private-1b"
   }
 }
 
@@ -68,7 +69,7 @@ resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
 
   tags = {
-    Name = "Gujju_capstone_igw"
+    Name = "gujju-capstone-igw"
   }
 }
 
@@ -95,9 +96,11 @@ resource "aws_route_table_association" "public_1b" {
   route_table_id = aws_route_table.public.id
 }
 
+# ---------- Security Groups ----------
+
 resource "aws_security_group" "ec2_sg" {
   name        = "gujju-capstone-ec2-sg"
-  description = "Allow HTTP , HTTPS , SSH"
+  description = "Allow HTTP, HTTPS, SSH"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -125,7 +128,7 @@ resource "aws_security_group" "ec2_sg" {
   }
 
   egress {
-    description = "All outbound"
+    description = "Allow all outbound"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -137,14 +140,13 @@ resource "aws_security_group" "ec2_sg" {
   }
 }
 
-
 resource "aws_security_group" "rds_sg" {
   name        = "gujju-capstone-rds-sg"
-  description = "Allow Ec2 inbound and default outbound"
+  description = "Allow MySQL from EC2 security group only"
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description     = "Ec2 inbound"
+    description     = "MySQL from EC2 SG"
     from_port       = 3306
     to_port         = 3306
     protocol        = "tcp"
@@ -152,18 +154,23 @@ resource "aws_security_group" "rds_sg" {
   }
 
   egress {
-    description = "All Outbound"
+    description = "Allow all outbound"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  tags = {
+    Name = "gujju-capstone-rds-sg"
+  }
 }
+
+# ---------- AMI Lookup ----------
 
 data "aws_ami" "ubuntu" {
   most_recent = true
-  owners      = ["099720109477"] # Canonical's official AWS account ID
+  owners      = ["099720109477"]
 
   filter {
     name   = "name"
@@ -176,31 +183,35 @@ data "aws_ami" "ubuntu" {
   }
 }
 
+# ---------- EC2 ----------
+
 resource "aws_instance" "web" {
   ami                    = data.aws_ami.ubuntu.id
-  instance_type          = "t3.micro"
+  instance_type          = var.instance_type
   subnet_id              = aws_subnet.public-1a.id
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
-  key_name               = "my-key"
+  key_name               = var.key_name
 
   tags = {
-    name = "gujju-capstone-ec2"
+    Name = "gujju-capstone-ec2"
   }
 }
+
+# ---------- RDS ----------
 
 resource "aws_db_subnet_group" "main" {
   name       = "gujju-capstone-db-subnet-group"
   subnet_ids = [aws_subnet.private-1a.id, aws_subnet.private-1b.id]
 
   tags = {
-    Name = "Gujju-capstone-db-subnet-group"
+    Name = "gujju-capstone-db-subnet-group"
   }
 }
 
 resource "aws_db_instance" "main" {
   identifier             = "gujju-capstone-db"
   engine                 = "mysql"
-  instance_class         = "db.t3.micro"
+  instance_class         = var.db_instance_class
   allocated_storage      = 20
   db_name                = "gujjudb"
   username               = "admin"
@@ -211,12 +222,14 @@ resource "aws_db_instance" "main" {
   skip_final_snapshot    = true
 
   tags = {
-    name = "gujju-capstone-db"
+    Name = "gujju-capstone-db"
   }
 }
 
+# ---------- S3 ----------
+
 resource "aws_s3_bucket" "portfolio" {
-  bucket = "gujju-capstone-portfolio-2026"
+  bucket = var.s3_bucket_name
 
   tags = {
     Name = "gujju-capstone-portfolio"
