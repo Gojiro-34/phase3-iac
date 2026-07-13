@@ -214,3 +214,19 @@ resource "aws_db_instance" "main" {
     name = "gujju-capstone-db"
   }
 }
+
+resource "aws_s3_bucket" "portfolio" {
+  bucket = "gujju-capstone-portfolio-2026"
+
+  tags = {
+    Name = "gujju-capstone-portfolio"
+  }
+}
+
+resource "aws_s3_bucket_website_configuration" "portfolio" {
+  bucket = aws_s3_bucket.portfolio.id
+
+  index_document {
+    suffix = "index.html"
+  }
+}
