@@ -94,3 +94,69 @@ resource "aws_route_table_association" "public_1b" {
   subnet_id      = aws_subnet.public-1b.id
   route_table_id = aws_route_table.public.id
 }
+
+resource "aws_security_group" "ec2_sg" {
+  name        = "gujju-capstone-ec2-sg"
+  description = "Allow HTTP , HTTPS , SSH"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description = "HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "All outbound"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "gujju-capstone-ec2-sg"
+  }
+}
+
+
+resource "aws_security_group" "rds_sg" {
+  name        = "gujju-capstone-rds-sg"
+  description = "Allow Ec2 inbound and default outbound"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description     = "Ec2 inbound"
+    from_port       = 3306
+    to_port         = 3306
+    protocol        = "tcp"
+    security_groups = [aws_security_group.ec2_sg.id]
+  }
+
+  egress {
+    description = "All Outbound"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks  = ["0.0.0.0/0"]
+  }
+
+}
