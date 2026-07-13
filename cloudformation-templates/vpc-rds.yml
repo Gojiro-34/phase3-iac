@@ -1,0 +1,128 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Simplified VPC + RDS setup"
+
+Parameters:
+ DBPassword:
+   Type: String
+   NoEcho: true
+   Description: "Master Password for RDS (min 8 chraters)"
+
+Resources:
+ MyVPC:
+  Type: AWS::EC2::VPC
+  Properties:
+   CidrBlock: 10.1.0.0/16
+   EnableDnsSupport: true
+   EnableDnsHostnames: true
+   Tags:
+    - Key: Name
+      Value: gujju-cf-vpc
+
+ PublicSubnet1:
+  Type: AWS::EC2::Subnet
+  Properties:
+   VpcId: !Ref MyVPC
+   CidrBlock: 10.1.1.0/24
+   AvailabilityZone: ap-south-1a
+   MapPublicIpOnLaunch: true
+   Tags:
+    - Key: Name
+      Value: gujju-cf-public-subnet-1a
+
+ PublicSubnet2:
+  Type: AWS::EC2::Subnet
+  Properties:
+   VpcId: !Ref MyVPC
+   CidrBlock: 10.1.2.0/24
+   AvailabilityZone: ap-south-1b
+   MapPublicIpOnLaunch: true
+   Tags:
+    - Key: Name
+      Value: gujju-cf-public-subnet-1b
+
+
+ MyInternetGateway:
+  Type: AWS::EC2::InternetGateway
+  Properties:
+   Tags:
+    - Key: Name
+      Value: gujju-cf-igw
+
+ AttachGateway:
+  Type: AWS::EC2::VPCGatewayAttachment
+  Properties:
+   VpcId: !Ref MyVPC
+   InternetGatewayId: !Ref MyInternetGateway
+
+ PublicRouteTable:
+  Type: AWS::EC2::RouteTable
+  Properties:
+   VpcId: !Ref MyVPC
+   Tags:
+    - Key: Name
+      Value: gujju-cf-public-rt
+
+ PublicRoute:
+  Type: AWS::EC2::Route
+  DependsOn: AttachGateway
+  Properties:
+   RouteTableId: !Ref PublicRouteTable
+   DestinationCidrBlock: 0.0.0.0/0
+   GatewayId: !Ref MyInternetGateway
+
+ SubnetRouteAssoc1:
+  Type: AWS::EC2::SubnetRouteTableAssociation
+  Properties:
+   SubnetId: !Ref PublicSubnet1
+   RouteTableId: !Ref PublicRouteTable
+
+ SubnetRouteAssoc2:
+  Type: AWS::EC2::SubnetRouteTableAssociation
+  Properties:
+   SubnetId: !Ref PublicSubnet2
+   RouteTableId: !Ref PublicRouteTable
+
+ RDSSubnetGroup:
+  Type: AWS::RDS::DBSubnetGroup
+  Properties:
+   DBSubnetGroupDescription: "Subnet Group For RDS"
+   SubnetIds:
+    - !Ref PublicSubnet1
+    - !Ref PublicSubnet2
+
+ RDSSecurityGroup:
+  Type: AWS::EC2::SecurityGroup
+  Properties:
+   GroupDescription: "Allow mySQL acess"
+   VpcId: !Ref MyVPC
+   SecurityGroupIngress:
+    - IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+      CidrIp: 10.1.0.0/16
+   Tags:
+    - Key: Name
+      Value: gujju-cf-rds-sg
+
+
+ MyDatabase:
+  Type: AWS::RDS::DBInstance
+  Properties:
+   DBInstanceIdentifier: gujju-cf-db
+   Engine: mysql
+   DBInstanceClass: db.t3.micro
+   AllocatedStorage: "20"
+   MasterUsername: admin
+   MasterUserPassword: !Ref DBPassword
+   DBSubnetGroupName: !Ref RDSSubnetGroup
+   VPCSecurityGroups:
+    - !Ref RDSSecurityGroup
+   PubliclyAccessible: False
+   Tags:
+    - Key: Name
+      Value: gujju-cf-rds
+
+Outputs:
+ DBEndpoint:
+  Description: "RDS connection Endpoint"
+  Value: !GetAtt MyDatabase.Endpoint.Address

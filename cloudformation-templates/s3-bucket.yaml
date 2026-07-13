@@ -1,0 +1,15 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "A simple s3 bucket for learning cloufloramtion"
+
+Resources:
+ MyBucket:
+  Type: AWS::S3::Bucket
+  Properties:
+   BucketName: gujju-cloudformation-bucket-2026
+   Tags:
+    - Key: Name
+      Value: gujju-cloudformation
+Outputs:
+ BucketName:
+  Description: "The name of created bucket"
+  Value: !Ref MyBucket
