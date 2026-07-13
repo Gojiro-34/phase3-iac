@@ -156,7 +156,61 @@ resource "aws_security_group" "rds_sg" {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks  = ["0.0.0.0/0"]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
+}
+
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  owners      = ["099720109477"] # Canonical's official AWS account ID
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "state"
+    values = ["available"]
+  }
+}
+
+resource "aws_instance" "web" {
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = "t3.micro"
+  subnet_id              = aws_subnet.public-1a.id
+  vpc_security_group_ids = [aws_security_group.ec2_sg.id]
+  key_name               = "my-key"
+
+  tags = {
+    name = "gujju-capstone-ec2"
+  }
+}
+
+resource "aws_db_subnet_group" "main" {
+  name       = "gujju-capstone-db-subnet-group"
+  subnet_ids = [aws_subnet.private-1a.id, aws_subnet.private-1b.id]
+
+  tags = {
+    Name = "Gujju-capstone-db-subnet-group"
+  }
+}
+
+resource "aws_db_instance" "main" {
+  identifier             = "gujju-capstone-db"
+  engine                 = "mysql"
+  instance_class         = "db.t3.micro"
+  allocated_storage      = 20
+  db_name                = "gujjudb"
+  username               = "admin"
+  password               = var.db_password
+  db_subnet_group_name   = aws_db_subnet_group.main.name
+  vpc_security_group_ids = [aws_security_group.rds_sg.id]
+  publicly_accessible    = false
+  skip_final_snapshot    = true
+
+  tags = {
+    name = "gujju-capstone-db"
+  }
 }
