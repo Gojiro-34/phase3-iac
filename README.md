@@ -34,11 +34,9 @@ AWS's own native IaC service — no separate tool to install, no state file to m
 
 The VPC + RDS template exists in two versions. The first used public subnets for RDS with `PubliclyAccessible: false` as the only real barrier. The second rebuilds it with RDS in genuinely private subnets — no route to an Internet Gateway at all — which is the correct pattern and the one actually used in Phase 2 and the capstone. Keeping both versions in the repo as a deliberate before/after comparison of the same architectural question.
 
-
-
 # Phase 3 Capstone — Terraform Rebuild of Phase 1 + 2
 
-Architecture diagram: ![Capstone Architecture](./Capstone-Diagram.png)
+Architecture diagram:![Capstone-Diagram.png](./capstone/Capstone-Diagram.png)
 
 The final project of Phase 3 — the entire Phase 1 and Phase 2 architecture, originally built by hand in the AWS Console, rebuilt from scratch as Terraform code. Same network, same security posture, same services, but now deployable and destroyable with a single command instead of a sequence of manual clicks.
 
