@@ -64,6 +64,70 @@ The same four-subnet, two-AZ, public/private split from the real Phase 2 network
 - Add an IAM role scoped to the EC2 instance (deliberately scoped out of this capstone to keep it focused, but the trust-policy/permissions-policy pattern is understood from the theory covered)
 - Use Ansible's `community.docker` collection for the container deploy steps, trading setup complexity for genuine idempotency on every run, not just the package installs
 
+
+# Phase 3 Capstone — Terraform Rebuild of Phase 1 + 2
+
+Architecture diagram: [Capstone-Diagram.png](./Capstone-Diagram.png)
+
+The final project of Phase 3 — the entire Phase 1 and Phase 2 architecture, originally built by hand in the AWS Console, rebuilt from scratch as Terraform code. Same network, same security posture, same services, but now deployable and destroyable with a single command instead of a sequence of manual clicks.
+
+## What this is
+
+A VPC-networked EC2 instance running a Dockerized Express app, a private-subnet RDS database it connects to, and an S3 bucket for static hosting — all defined in HCL, validated with `terraform plan`, and version-controlled in git rather than existing only as a memory of what was clicked in the Console months ago.
+
+## Architecture
+
+```
+Users
+  │
+  └──> EC2 (public subnet, Docker container running Express)
+           │
+           └──> RDS MySQL (private subnets, no internet route)
+
+Security groups reference each other, not IP addresses:
+  gujju-capstone-ec2-sg (80/443/22 from 0.0.0.0/0)
+        │
+        └──trusted by──> gujju-capstone-rds-sg (3306, source: ec2-sg only)
+
+S3 bucket (static website hosting) — outside the VPC boundary, accessed via AWS's public API, not VPC networking
+```
+
+## Why it's built this way
+
+**Public/private subnet split.** EC2 sits in a public subnet because it needs to serve HTTP/HTTPS traffic. RDS sits in private subnets with no route to an Internet Gateway at all — the same distinction that matters here as in Phase 2: a subnet only becomes "public" because its route table has a route to an IGW, not because of anything about the subnet resource itself. Removing that route is what makes the private subnets private, not a firewall rule layered on top.
+
+**Two Availability Zones.** All four subnets are duplicated across `ap-south-1a` and `ap-south-1b`, matching the real Phase 2 network. RDS's DB subnet group requires this regardless of whether Multi-AZ is ever turned on, so the network is ready for that upgrade without a redesign later.
+
+**No NAT Gateway.** Same cost call as Phase 2 — private subnets have no outbound internet route, which is fine here since RDS doesn't need one and there's no Lambda in this simplified rebuild needing S3 access from inside the VPC.
+
+**AMI resolved at plan time, not hardcoded.** A `data "aws_ami"` block queries AWS directly for the current Ubuntu 22.04 image, filtered to Canonical's official publishing account (`099720109477`) and sorted to the most recent. This means the template stays correct as AWS patches the image over time, instead of silently pointing at an increasingly outdated AMI ID six months from now.
+
+**Security groups reference each other, not IP addresses.** `gujju-capstone-rds-sg` allows inbound MySQL traffic only from `gujju-capstone-ec2-sg` as a security group source, not from a CIDR block. The rule keeps working correctly regardless of what IP the EC2 instance ends up with, since AWS resolves it against group membership.
+
+**The database password is a variable, not a value.** `db_password` is declared as a `sensitive` Terraform variable with no default. Its real value lives only in a local `terraform.tfvars`, excluded from git by the repo's `.gitignore`. The template stays safe to read, share, and commit; the actual secret never does.
+
+**`apply` deliberately not run on this final version.** The full `apply → destroy` cycle was already proven for real earlier in Phase 3 — once for the Terraform EC2+S3 warmup project, and twice across the CloudFormation VPC+RDS stacks. A clean `terraform plan` here, showing all 15 resources with correct dependency ordering and zero errors, demonstrates the same competency without spending AWS credits redeploying architecture that's already running in Phase 2.
+
+## Components
+
+| Component | Purpose |
+|---|---|
+| VPC | Custom network, `10.2.0.0/16`, 4 subnets across 2 AZs |
+| EC2 (`gujju-capstone-ec2`) | Runs the Dockerized Express app, public subnet |
+| RDS (`gujju-capstone-db`) | MySQL, private subnets only, `publicly_accessible = false` |
+| S3 (`gujju-capstone-portfolio-2026`) | Static website hosting configuration |
+| Security groups | EC2 SG (80/443/22); RDS SG (3306, trusts EC2 SG only) |
+| `data "aws_ami"` | Resolves the current Ubuntu 22.04 AMI at plan time |
+| Internet Gateway + public route table | Attached only to the public subnets |
+
+## What I'd do differently at scale
+
+- Use `for_each` for the repeated subnet and route-table-association resources instead of writing each one out explicitly
+- Move Terraform state to a remote S3 backend with locking, rather than local state
+- Add an IAM role scoped to the EC2 instance for least-privilege access to other AWS services (deliberately left out of this capstone to keep scope focused, though the trust-policy/permissions-policy pattern was covered in theory)
+- Enable RDS Multi-AZ for automatic failover, since the subnet groundwork already supports it
+- Add a NAT Gateway only if a private-subnet resource ever genuinely needs outbound internet access — not by default
+
 ## Cost notes
 
-Networking resources (VPC, subnets, route tables, IGW, security groups) are free regardless of how many exist. The only real cost drivers across this repo are RDS and EC2 compute time while actually running — every deployed stack or apply in this repo was verified, then torn down (`terraform destroy` / `aws cloudformation delete-stack`) rather than left running, to stay within the AWS free-tier credit budget for the rest of the roadmap.
+VPC, subnets, route tables, the Internet Gateway, and security groups are free regardless of how many exist. The only real cost drivers are RDS and EC2 compute time while actually running. This template was validated with `terraform plan` against a live AWS account but not deployed via `apply`, to avoid spending AWS free-tier credits on a fourth real deployment of infrastructure already proven earlier in Phase 3.
