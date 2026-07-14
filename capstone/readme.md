@@ -19,7 +19,7 @@ This is the culmination of Phase 3's three topics: Terraform (Topic 1), Ansible 
 - **S3 bucket** with static website hosting configuration, for the portfolio site
 ## Diagram
 
-![Capstone Architecture](./phase3-capstone.png)
+![Capstone Architecture](./Capstone-diagram.png)
 
 ## Design decisions
 
