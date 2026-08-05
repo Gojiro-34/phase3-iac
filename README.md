@@ -87,7 +87,7 @@ S3 bucket (static website hosting) — outside the VPC boundary, accessed via AW
 | S3 (`gujju-capstone-portfolio-2026`) | Static website hosting configuration |
 | Security groups | EC2 SG (80/443/22); RDS SG (3306, trusts EC2 SG only) |
 | `data "aws_ami"` | Resolves the current Ubuntu 22.04 AMI at plan time |
-| Internet Gateway + public route table | Attached only to the public subnets |
+| Internet Gateway + public route table | Attached only to the public subnets 
 
 ## What I'd do differently at scale
 
